@@ -18,6 +18,35 @@ imshow(rgb)
 title('Original image')
 %% 
 
+%% paper 3
+% stretch red values
+gray_rgb = rgb2gray(rgb);
+red_channel = rgb(:,:,1);
+red_min = min(red_channel(:));
+red_max = max(red_channel(:));
+red_stretched = 255*((red_channel-red_min)/(red_max-red_min));
+rgb_stretched = rgb;
+rgb_stretched(:,:,1) = red_stretched;
+imshow(rgb_stretched)
+segmented_image = zeros(size(gray_rgb));
+segmented_image(rgb_stretched(:,:,1)-(rgb_stretched(:,:,2)+rgb_stretched(:,:,3))>100) = 1;
+imshow(segmented_image)
+
+%% hough
+[centers, radii, ~] = imfindcircles(segmented_image, 20);
+figure(); clf;
+imshow(segmented_image)
+viscircles(centers, radii,'EdgeColor','b');
+
+%% 8-bit connectivity
+CC = bwconncomp(segmented_image);
+S = regionprops(CC, 'PixelIdxList', 'Centroid');
+figure(); clf;
+imshow( rgb ); hold on;
+for k = 1:CC.NumObjects
+    plot( S(k).Centroid(1), S(k).Centroid(2), 'rx', 'MarkerSize', 10);
+end
+
 %% k-means clustering
 L = imsegkmeans(rgb, 2);
 knn_rgb = labeloverlay(rgb, L);
