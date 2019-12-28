@@ -39,11 +39,10 @@ data.peaches.top.thermal.calibrated = transform(data.peaches.top.thermal.undisto
 data.peaches.bottom.thermal.calibrated = transform(data.peaches.bottom.thermal.undistorted, @(x) calibrate(x));
 
 %% thresholding
-% TODO use calibrated thermal images in combined datastore
-data.peaches.top.combined = combine(data.peaches.top.RGB.noiseReduced, data.peaches.top.thermal.ds);
-data.peaches.bottom.combined = combine(data.peaches.bottom.RGB.noiseReduced, data.peaches.bottom.thermal.ds);
-data.peaches.top.binary = transform(data.peaches.top.combined, @(x) applyThreshold(x{1}, x{2}));
-data.peaches.bottom.binary = transform(data.peaches.bottom.combined, @(x) applyThreshold(x{1}, x{2}));
+data.peaches.top.combined = combine(data.peaches.top.RGB.ds, data.peaches.top.RGB.noiseReduced, data.peaches.top.thermal.ds);
+data.peaches.bottom.combined = combine(data.peaches.bottom.RGB.ds, data.peaches.bottom.RGB.noiseReduced, data.peaches.bottom.thermal.ds);
+data.peaches.top.binary = transform(data.peaches.top.combined, @(x) applyThreshold(x{2}, x{3}));
+data.peaches.bottom.binary = transform(data.peaches.bottom.combined, @(x) applyThreshold(x{2}, x{3}));
 
 %% small object removal
 data.peaches.top.smallObjectsRemoved = transform(data.peaches.top.binary, @(x) removeSmallObjects(x));
