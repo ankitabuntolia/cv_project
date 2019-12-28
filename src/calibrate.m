@@ -1,4 +1,4 @@
-function y = calibrate(x)
+function y = calibrate(thermal)
     % TODO implement this function
-    y = x;
+    y = thermal;
 end

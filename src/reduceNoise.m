@@ -1,4 +1,3 @@
-function y = reduceNoise(x)
-    % TODO implement this function
-    y = x;
+function y = reduceNoise(gray)
+    y = wiener2(gray);
 end

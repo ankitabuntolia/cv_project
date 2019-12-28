@@ -1,3 +1,3 @@
-function y = undistort(x, cameraParams)
-    y = undistortImage(x, cameraParams);
+function y = undistort(image, cameraParams)
+    y = undistortImage(image, cameraParams);
 end

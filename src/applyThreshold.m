@@ -1,4 +1,4 @@
-function y = applyThreshold(x)
+function y = applyThreshold(gray, thermal)
     % TODO implement this function
-    y = imbinarize(x(1), 0.5);
+    y = imbinarize(gray, 0.9);
 end
