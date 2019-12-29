@@ -1,4 +1,3 @@
-function y = calibrate(thermal)
-    % TODO implement this function
-    y = thermal;
+function y = calibrate(thermal, tform, outputView)
+  y = imwarp(thermal, tform, 'OutputView', outputView);
 end
