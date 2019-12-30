@@ -61,15 +61,11 @@ data.peaches.bottom.binary = transform(data.peaches.bottom.combined, @(x) applyT
 data.peaches.top.smallObjectsRemoved = transform(data.peaches.top.binary, @(x) removeSmallObjects(x));
 data.peaches.bottom.smallObjectsRemoved = transform(data.peaches.bottom.binary, @(x) removeSmallObjects(x));
 
-%% inversion
-data.peaches.top.inverted = transform(data.peaches.top.smallObjectsRemoved, @(x) invert(x));
-data.peaches.bottom.inverted = transform(data.peaches.bottom.smallObjectsRemoved, @(x) invert(x));
-
 %% display images (for testing)
 original = read(data.peaches.top.RGB.ds);
 shadowReduced = read(data.peaches.top.RGB.shadowReduced);
 grayscaled = read(data.peaches.top.RGB.grayscaled);
-preprocessed = read(data.peaches.top.inverted);
+preprocessed = read(data.peaches.top.smallObjectsRemoved);
 figure;
 subplot(2,2,1); imshow(original); title('original');
 subplot(2,2,2); imshow(shadowReduced); title ('shadow reduced');
