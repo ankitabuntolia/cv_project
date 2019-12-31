@@ -8,7 +8,6 @@ load('./data/sfm_top.mat');
 
 %% load images to datastore
 rgbds = datastore( rgbpath );
-thermalds = datastore( thermalpath );
 
 %% id of image to work with
 useId = 8;
@@ -20,7 +19,7 @@ cameraParams = rgbParams.cameraParams;
 rgb = undistortImage(readimage(rgbds, useId), cameraParams);
 
 %% if necessary scale images
-imgscale = 1;%.25;
+imgscale = .25;
 rgb = imresize(rgb, imgscale);
 
 %% showing original image
@@ -32,23 +31,23 @@ title('Original image')
 [bw, maskedRGBImage] = createMask(rgb);
 
 %% performing image close and open operation to remove branches
-se = strel('disk',3/0.25*imgscale);
+se = strel('disk',12*imgscale);
 closeBW = imclose(bw, se);
-figure(1);
 imshow(closeBW);
-se2 = strel('disk',5/0.25*imgscale);
+se2 = strel('disk',20*imgscale);
 openBW = imopen(closeBW, se2);
+figure(2);
 imshow(openBW); hold on;
 
 %% WIP detection method 1: find connected pixel regions (centers, bounding boxes and area)
 peaches = regionprops(openBW, 'Centroid', 'BoundingBox', 'Area');
 
 %% WIP detection method 2: circular hough transform
-[centers, radii, metric] = imfindcircles(openBW,[10 30]);
+[centers, radii, ~] = imfindcircles(openBW,[40*imgscale 120*imgscale]);
 viscircles(centers, radii,'EdgeColor','b');
 
 %% WIP detection method 3: circular hough transform with other parametrization
-[centers, radii, metric] = imfindcircles(openBW,[5 30]);
+[centers, radii, ~] = imfindcircles(openBW,[20*imgscale 120*imgscale]);
 viscircles(centers, radii,'EdgeColor','r');
 
 %% WIP combining info of 3 detection approaches
@@ -60,19 +59,42 @@ for k = 1 : length(peaches)
     plot( peaches(k).Centroid(1), peaches(k).Centroid(2), 'rx', 'MarkerSize', 10);
 end
 
-%% put center coordinates (x,y) in separate cell array
+%% put center coordinates (x,y) in separate cell array and rescale them for tracking with sfm
 elements = struct2cell(peaches)';
-centers = elements(:,2);
+centers_scaled = elements(:,2);
+centers = zeros(length(centers_scaled),2);
+
+for i = 1 : length(centers_scaled)
+    x_new = interp1([1 6000*imgscale], [1 6000], centers_scaled{i}(1,1));
+    y_new = interp1([1 4000*imgscale], [1 4000], centers_scaled{i}(1,2));
+    centers(i,:) = [x_new, y_new];
+end
 
 %% tracking part:
 %% compare worldPoints of peaches
-[centers1, worldPoints1] = find_peaches(7, rgbds, cameraParams, imgscale);
-[centers2, worldPoints2] = find_peaches(8, rgbds, cameraParams, imgscale);
+[worldPoints] = centers_to_world_points(useId, rgbds, cameraParams, centers);
 
 %% for testing projections draw world points of peaches from one img to another
-draw_peach_centers_in_img(8, rgbds, cameraParams, worldPoints2);
+draw_peach_centers_in_img(useId, rgbds, cameraParams, worldPoints);
 
-%% functions encapsulating most of the code from above + my first tracking ideas
+%% functions for my first tracking ideas
+function [worldPoints] = centers_to_world_points(useId, rgbds, cameraParams, centers)
+    %% loading sfm data
+    load('./data/sfm_top.mat');
+	%% assert that correct sfm data is used for loaded img (see sfm scripts from lab for reference)
+    [filepath,name,ext] = fileparts(rgbds.Files{useId});
+    assert( isequal(imagenames{useId},[name,ext]) );
+    
+	%% using camera poses from sfm data to get rotation and translation
+    camPoses = poses(vSet);
+    loc = camPoses.Location{useId};
+    ori = camPoses.Orientation{useId};
+    [rot, transl] = cameraPoseToExtrinsics( ori, loc );
+    
+	%% calculate world coordinates for each detected center and store into array -> doesn't work correctly yet!!
+    worldPoints = [pointsToWorld(cameraParams,rot,transl,centers) zeros(length(centers), 1)];
+end
+
 function draw_peach_centers_in_img(useId, rgbds, cameraParams, worldPoints)
 	%% loading sfm data
     load('./data/sfm_top.mat');
@@ -84,45 +106,14 @@ function draw_peach_centers_in_img(useId, rgbds, cameraParams, worldPoints)
     loc = camPoses.Location{useId};
     ori = camPoses.Orientation{useId};
     [rot, transl] = cameraPoseToExtrinsics( ori, loc );
+    reprojPoints = worldToImage( cameraParams, rot, transl, xyzPoints );
     I = undistortImage( readimage(rgbds, useId), cameraParams );
 	%% convert center world points back to image points to mark the peaches on the selected image
     imshow( I ); hold on; title( 'reproject precomputed RGB points' );
+    scatter( reprojPoints(:,1), reprojPoints(:,2), 1, double(rgbPoints)./255, 'filled' );
     for i = 1 : length(worldPoints)
         reproj = worldToImage( cameraParams, rot, transl, worldPoints(i,:) );
         scatter( reproj(:,1), reproj(:,2), 80, 'rx');
     end
     drawnow;
-end
-
-function [centers, worldPoints] = find_peaches(useId, rgbds, cameraParams, imgscale)
-	%% loading sfm data
-    load('./data/sfm_top.mat');
-	%% assert that correct sfm data is used for loaded img (see sfm scripts from lab for reference)
-    [filepath,name,ext] = fileparts(rgbds.Files{useId});
-    assert( isequal(imagenames{useId},[name,ext]) );
-	%% minimal version of detection algorithm from above
-    rgb = undistortImage(readimage(rgbds, useId), cameraParams);
-    [bw, ~] = createMask(rgb);
-    se = strel('disk',3/0.25*imgscale);
-    closeBW = imclose(bw, se);
-    se2 = strel('disk',5/0.25*imgscale);
-    openBW = imopen(closeBW, se2);
-    peaches = regionprops(openBW, 'Centroid', 'BoundingBox', 'Area');
-	
-	%% put center coordinates (x,y) in separate cell array
-    elements = struct2cell(peaches)';
-    centers = elements(:,2);
-    
-	%% using camera poses from sfm data to get rotation and translation
-    camPoses = poses(vSet);
-    loc = camPoses.Location{useId};
-    ori = camPoses.Orientation{useId};
-    [rot, transl] = cameraPoseToExtrinsics( ori, loc );
-	%% calculate world coordinates for each detected center and store into array -> doesn't work correctly yet!!
-    worldPoints = zeros(length(centers), 3);
-    for i = 1 : length(centers)
-        pt = [centers{i}(1), centers{i}(2)];
-        worldPoint = pointsToWorld(cameraParams,rot,transl,pt);
-        worldPoints(i,:) = [worldPoint(1), worldPoint(2), 0];
-    end
 end
