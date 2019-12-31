@@ -1,83 +1,42 @@
 %% cleaning up
 clear all; clc; close all;
 
-%% loading data: rgb, camera params and sfm data
-rgbpath = './data/peaches/top/RGB';
+%% detection part:
+%% loading camera params
 rgbParams = load( './data/camParams_RGB.mat' );
-load('./data/sfm_top.mat');
+cameraParams = rgbParams.cameraParams; % intrinsic parameters of rgb camera
 
-%% load images to datastore
+%% top row
+rgbpath = './data/peaches/top/RGB';
 rgbds = datastore( rgbpath );
 
-%% id of image to work with
-useId = 8;
-
-%% intrinsic parameters of rgb camera
-cameraParams = rgbParams.cameraParams;
-
-%% undistort image
-rgb = undistortImage(readimage(rgbds, useId), cameraParams);
-
-%% if necessary scale images
-imgscale = .25;
-rgb = imresize(rgb, imgscale);
-
-%% showing original image
-figure(1)
-imshow(rgb)
-title('Original image')
-
-%% binarization with generated matlab color thresholding function
-[bw, maskedRGBImage] = createMask(rgb);
-
-%% performing image close and open operation to remove branches
-se = strel('disk',12*imgscale);
-closeBW = imclose(bw, se);
-imshow(closeBW);
-se2 = strel('disk',20*imgscale);
-openBW = imopen(closeBW, se2);
-figure(2);
-imshow(openBW); hold on;
-
-%% WIP detection method 1: find connected pixel regions (centers, bounding boxes and area)
-peaches = regionprops(openBW, 'Centroid', 'BoundingBox', 'Area');
-
-%% WIP detection method 2: circular hough transform
-[centers, radii, ~] = imfindcircles(openBW,[40*imgscale 120*imgscale]);
-viscircles(centers, radii,'EdgeColor','b');
-
-%% WIP detection method 3: circular hough transform with other parametrization
-[centers, radii, ~] = imfindcircles(openBW,[20*imgscale 120*imgscale]);
-viscircles(centers, radii,'EdgeColor','r');
-
-%% WIP combining info of 3 detection approaches
-
-%% print peaches centers with bounding boxes
-for k = 1 : length(peaches)
-    thisBB = peaches(k).BoundingBox;
-    rectangle('Position',[thisBB(1),thisBB(2),thisBB(3),thisBB(4)],'EdgeColor','b','LineWidth',1 );
-    plot( peaches(k).Centroid(1), peaches(k).Centroid(2), 'rx', 'MarkerSize', 10);
+all_centers_top = cell(length(rgbds.Files),1);
+for useId = 1:length(rgbds.Files)
+    all_centers_top{useId} = detect_peaches(useId, rgbds, cameraParams, true, 2);
 end
 
-%% put center coordinates (x,y) in separate cell array and rescale them for tracking with sfm
-elements = struct2cell(peaches)';
-centers_scaled = elements(:,2);
-centers = zeros(length(centers_scaled),2);
+%% bottom row
+rgbpath = './data/peaches/bottom/RGB';
+rgbds = datastore( rgbpath );
 
-for i = 1 : length(centers_scaled)
-    x_new = interp1([1 6000*imgscale], [1 6000], centers_scaled{i}(1,1));
-    y_new = interp1([1 4000*imgscale], [1 4000], centers_scaled{i}(1,2));
-    centers(i,:) = [x_new, y_new];
+all_centers_bottom = cell(length(rgbds.Files),1);
+for useId = 1:2%length(rgbds.Files)
+    all_centers_bottom{useId} = detect_peaches(useId, rgbds, cameraParams, true, 1);
 end
 
 %% tracking part:
-%% compare worldPoints of peaches
+%% calculate worldPoints of peaches for comparison
+centers = all_centers_top{8};
 [worldPoints] = centers_to_world_points(useId, rgbds, cameraParams, centers);
 
 %% for testing projections draw world points of peaches from one img to another
-draw_peach_centers_in_img(useId, rgbds, cameraParams, worldPoints);
+draw_peach_centers_in_img(useId+1, rgbds, cameraParams, worldPoints);
 
 %% functions for my first tracking ideas
+% WARNING! something's off with calculation of worldPoints or the inverse (or both), 
+% because the reprojection only works into the same image (which isn't useful at all)
+
+% function calculating world points from image points of image with id
 function [worldPoints] = centers_to_world_points(useId, rgbds, cameraParams, centers)
     %% loading sfm data
     load('./data/sfm_top.mat');
@@ -95,6 +54,7 @@ function [worldPoints] = centers_to_world_points(useId, rgbds, cameraParams, cen
     worldPoints = [pointsToWorld(cameraParams,rot,transl,centers) zeros(length(centers), 1)];
 end
 
+% function drawing world coordinate points into image with id "useId"
 function draw_peach_centers_in_img(useId, rgbds, cameraParams, worldPoints)
 	%% loading sfm data
     load('./data/sfm_top.mat');
@@ -116,4 +76,82 @@ function draw_peach_centers_in_img(useId, rgbds, cameraParams, worldPoints)
         scatter( reproj(:,1), reproj(:,2), 80, 'rx');
     end
     drawnow;
+end
+
+% function detecting peaches and returning array with image coordinates of
+% centers
+function [centers] = detect_peaches(useId, rgbds, cameraParams, showResults, threshold_function)
+    %% undistort image
+    rgb = undistortImage(readimage(rgbds, useId), cameraParams);
+
+    %% if necessary scale images
+    imgscale = .25;
+    rgb = imresize(rgb, imgscale);
+
+    %% binarization with generated matlab color thresholding function
+    switch threshold_function
+        case 1
+            [bw, ~] = createMask(rgb);
+        case 2
+            [bw, ~] = createMask2(rgb);
+    end
+
+    %% performing image close and open operation to remove branches
+    se = strel('disk',12*imgscale);
+    closeBW = imclose(bw, se);
+    se2 = strel('disk',20*imgscale);
+    openBW = imopen(closeBW, se2);
+    
+    %% showing morphological operations
+    if showResults
+        figure('Name',['Morphological operations img ', num2str(useId)]);
+        subplot(1,2,1);
+        imshow( closeBW );
+        title('Closed BW')
+        subplot(1,2,2);
+        imshow( openBW );
+        title('Opened BW')
+    end
+    
+    %% showing original image with results
+    if showResults
+        figure('Name',['Results img ', num2str(useId)])
+        subplot(1,2,1);
+        imshow(rgb);
+        title('Original image')
+        subplot(1,2,2);
+        imshow(rgb); hold on;
+        title('Results')
+    end
+
+    %% WIP detection method 1: find connected pixel regions (centers, bounding boxes and area)
+    peaches = regionprops(openBW, 'Centroid', 'BoundingBox', 'Area');
+
+    %% WIP detection method 2: circular hough transform
+    [centers, radii, ~] = imfindcircles(openBW,[40*imgscale 120*imgscale]);
+    viscircles(centers, radii,'EdgeColor','b');
+
+    %% WIP detection method 3: circular hough transform with other parametrization
+    [centers, radii, ~] = imfindcircles(openBW,[24*imgscale 60*imgscale]);
+    viscircles(centers, radii,'EdgeColor','r');
+
+    %% WIP combining info of 3 detection approaches
+    
+    %% print peaches centers with bounding boxes
+    for k = 1 : length(peaches)
+        thisBB = peaches(k).BoundingBox;
+        rectangle('Position',[thisBB(1),thisBB(2),thisBB(3),thisBB(4)],'EdgeColor','b','LineWidth',1 );
+        plot( peaches(k).Centroid(1), peaches(k).Centroid(2), 'rx', 'MarkerSize', 10);
+    end
+
+    %% put center coordinates (x,y) in separate cell array and rescale them for tracking with sfm
+    elements = struct2cell(peaches)';
+    centers_scaled = elements(:,2);
+    centers = zeros(length(centers_scaled),2);
+
+    for i = 1 : length(centers_scaled)
+        x_new = interp1([1 6000*imgscale], [1 6000], centers_scaled{i}(1,1));
+        y_new = interp1([1 4000*imgscale], [1 4000], centers_scaled{i}(1,2));
+        centers(i,:) = [x_new, y_new];
+    end
 end
