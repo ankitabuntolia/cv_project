@@ -48,13 +48,6 @@ function [peaches] = detectCenters(binary)
   end
 
   if ~isempty(peaches)
-    %% print peaches centers with bounding boxes
-    for k = 1 : length(peaches)
-      thisBB = peaches(k).BoundingBox;
-      rectangle('Position',[thisBB(1),thisBB(2),thisBB(3),thisBB(4)],'EdgeColor','b','LineWidth',1 );
-      plot( peaches(k).Centroid(1), peaches(k).Centroid(2), 'rx', 'MarkerSize', 10);
-    end
-
     %% put center coordinates (x,y) in separate cell array and rescale them for tracking with sfm
     elements = struct2cell(peaches')';
     centers_scaled = elements(:,2);
