@@ -1,4 +1,9 @@
-function y = applyThreshold(gray, thermal)
-  %y = bitor(imbinarize(gray, 0.9), imbinarize(thermal, 0.123));
-  y = imbinarize(gray, 0.9);
+function [binary] = applyThreshold(rgb, threshold_function)
+  %% binarization with generated matlab color thresholding function
+  switch threshold_function
+    case 1
+      [binary, ~] = createMask(rgb);
+    case 2
+      [binary, ~] = createMask2(rgb);
+  end
 end
