@@ -53,3 +53,25 @@ for k = 1 : length(data.peaches.bottom.centers)
 end
 subplot(2,2,3); imshow(data.peaches.bottom.binary); title('binary');
 subplot(2,2,4); imshow(data.peaches.bottom.smallObjectsRemoved); title ('smallObjectsRemoved');
+
+%% world points computation
+all_centers_top = data.peaches.top.centers;
+if isempty(all_centers_top)
+    all_worldPoints_top = [];
+else
+    loc = camPoses_top.Location{useIdTop};
+    ori = camPoses_top.Orientation{useIdTop};
+    [rot, transl] = cameraPoseToExtrinsics(ori, loc);
+    centroid = cell2mat({all_centers_top.Centroid}');
+    all_worldPoints_top = pointsToWorld(data.camParams_RGB.cameraParams, rot, transl, centroid);
+end
+all_centers_bottom = data.peaches.bottom.centers;
+if isempty(all_centers_bottom)
+    all_worldPoints_bottom = [];
+else
+    loc = camPoses_bottom.Location{useIdBottom};
+    ori = camPoses_bottom.Orientation{useIdBottom};
+    [rot, transl] = cameraPoseToExtrinsics(ori, loc);
+    centroid = cell2mat({all_centers_bottom.Centroid}');
+    all_worldPoints_bottom = pointsToWorld(data.camParams_RGB.cameraParams, rot, transl, centroid);
+end
